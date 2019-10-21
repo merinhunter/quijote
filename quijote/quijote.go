@@ -61,7 +61,7 @@ func parseLine(line string) []string {
 	reg, err := regexp.Compile("[^a-zA-ZáéíóúïüñÁÉÍÓÚÏÜÑ.:]+")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "compiling regex:", err)
-	} // TODO: Is necesary?
+	} // TODO: Is necessary?
 	line = reg.ReplaceAllString(line, " ") // Applies the regex
 
 	scanner := bufio.NewScanner(strings.NewReader(line))
@@ -98,7 +98,7 @@ func parseWord(word string) wordParsed {
 	reg, err := regexp.Compile("[^a-zA-ZáéíóúïüñÁÉÍÓÚÏÜÑ]+")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "compiling regex:", err)
-	} // TODO: Is necesary?
+	} // TODO: Is necessary?
 	word = reg.ReplaceAllString(word, "") // Applies the regex
 
 	if len(word) < 3 {
