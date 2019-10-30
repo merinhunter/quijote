@@ -7,41 +7,41 @@ import (
 )
 
 var wordList = []string{
-	"Hello",
-	"as",
-	"Drop-Out",
+	"Hola",
+	"adiós",
+	"yo",
 	"únicos",
 }
 
 var wordsExpected = []wordParsed{
-	{true, "hello"},
+	{true, "hola"},
+	{true, "adiós"},
 	{false, ""},
-	{true, "dropout"},
 	{true, "únicos"},
 }
 
 var lines = []string{
 	"gentes. Nuestra mejor salsa es la hambre; y como ésta no falta a los",
-	"-Calla, boba -dijo Sancho-, que todo será usarlo dos o tres años; que",
+	"-Calla, boba -dijo Sancho-, que todo será usarlo dos o tres años; que.",
 	"-Pues guíe vuestra merced -respondió Sancho-: quizá será así; aunque yo lo",
-	"-¡Válame Dios! -dijo la sobrina- 1994 . ¡Que sepa vuestra merced tanto, señor",
+	"-¡Válame Dios! -dijo la sobrina-. ¡Que sepa vuestra merced tanto, señor",
 	"emendarme; que yo soy tan fócil...",
 	"sin duda alguna. Vale.",
 	"outside the United States. U.S. laws alone swamp our small staff.",
-	"vuestra fermosura. Y también cuando leía: ...los altos cielos que de",
+	"vuestra fermosura. Y también cuando leía: Dios...los altos cielos que de",
 	"le dijo: ''Hermano:",
 }
 
-var linesExpected = [][]string{
-	{"nuestra"},
-	nil,
-	{"quizá"},
-	{"que"},
-	nil,
-	{"vale"},
-	{"laws"},
-	{"los"},
-	{"hermano"},
+var linesExpected = []lineParsed{
+	{false, []string{"nuestra"}},
+	{true, nil},
+	{false, []string{"quizá"}},
+	{false, []string{"que"}},
+	{true, nil},
+	{true, []string{"vale"}},
+	{true, []string{"laws"}},
+	{false, []string{"dios", "los"}},
+	{true, []string{"hermano"}},
 }
 
 var text = `Media noche era por filo, poco más a menos, cuando don Quijote y Sancho
@@ -61,8 +61,14 @@ despierta.`
 var textExpected = []wordLine{
 	{2, []string{"estaba"}},
 	{4, []string{"era"}},
-	{12, []string{"quizá"}},
+	{12, []string{"sancho", "quizá"}},
 }
+
+var printExpected = "test:4\n" +
+	"\ttestFile:1\n" +
+	"\ttestFile:2\n" +
+	"\ttestFile:3\n" +
+	"\ttestFile:4\n"
 
 func TestParseWord(t *testing.T) {
 	for i := 0; i < len(wordList); i++ {
@@ -92,9 +98,22 @@ func testEq(a, b []string) bool {
 	return true
 }
 
+func testEqLine(a, b lineParsed) bool {
+
+	if a.scanNext != b.scanNext {
+		return false
+	}
+
+	if !testEq(a.wordList, b.wordList) {
+		return false
+	}
+
+	return true
+}
+
 func TestParseLine(t *testing.T) {
 	for i := 0; i < len(lines); i++ {
-		if got := parseLine(lines[i]); !testEq(got, linesExpected[i]) {
+		if got := parseLine(false, lines[i]); !testEqLine(got, linesExpected[i]) {
 			t.Errorf("parseLine(%s) = %v, expected %v", lines[i], got, linesExpected[i])
 		}
 	}
@@ -121,7 +140,9 @@ func TestAddPrint(t *testing.T) {
 	words.addWord("test", 3, "testFile")
 	words.addWord("test", 4, "testFile")
 
-	words.printWords()
+	if got := words.String(); got != printExpected {
+		t.Errorf("words.String() =\n%v\n, expected\n%v", got, printExpected)
+	}
 }
 
 func testEqFile(a, b []wordLine) bool {

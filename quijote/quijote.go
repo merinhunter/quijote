@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 type word struct {
@@ -22,6 +22,11 @@ type wordParsed struct {
 	wordString string
 }
 
+type lineParsed struct {
+	scanNext bool
+	wordList []string
+}
+
 type wordLine struct {
 	lineNumber int
 	wordList   []string
@@ -31,7 +36,8 @@ func newWords() words {
 	return words(make(map[string][]word))
 }
 
-func (w words) printWords() {
+func (w words) String() string {
+	var s string
 	var keys []string
 
 	for k := range w {
@@ -40,12 +46,16 @@ func (w words) printWords() {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		fmt.Printf("%s:%d\n", k, len(w[k]))
+		t := fmt.Sprintf("%s:%d\n", k, len(w[k]))
+		s += t
 
 		for _, event := range w[k] {
-			fmt.Printf("\t%s:%d\n", event.filename, event.lineNumber)
+			t := fmt.Sprintf("\t%s:%d\n", event.filename, event.lineNumber)
+			s += t
 		}
 	}
+
+	return s
 }
 
 // Adds the word to the dictionary
@@ -55,52 +65,7 @@ func (w words) addWord(wordString string, lineNumber int, filename string) {
 	w[wordString] = append(w[wordString], event)
 }
 
-// Splits a line and convert every word into lowercase
-func parseLine(line string) []string {
-	// Makes a regex to discard non spanish alphabetic characters
-	reg, err := regexp.Compile("[^a-zA-ZáéíóúïüñÁÉÍÓÚÏÜÑ.:]+")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "compiling regex:", err)
-	} // TODO: Is necessary?
-	line = reg.ReplaceAllString(line, " ") // Applies the regex
-
-	scanner := bufio.NewScanner(strings.NewReader(line))
-	scanner.Split(bufio.ScanWords)
-
-	var words []string
-	scanNext := false
-	for scanner.Scan() {
-		word := scanner.Text()
-
-		if scanNext {
-			result := parseWord(word)
-			if result.isValid {
-				words = append(words, result.wordString)
-			}
-			scanNext = false
-		}
-
-		if string(word[len(word)-1:]) == "." || string(word[len(word)-1:]) == ":" {
-			scanNext = true
-		}
-	}
-
-	// Prints any error encountered by the Scanner
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading line:", err)
-	}
-
-	return words
-}
-
 func parseWord(word string) wordParsed {
-	// Makes a regex to discard non spanish alphabetic characters
-	reg, err := regexp.Compile("[^a-zA-ZáéíóúïüñÁÉÍÓÚÏÜÑ]+")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "compiling regex:", err)
-	} // TODO: Is necessary?
-	word = reg.ReplaceAllString(word, "") // Applies the regex
-
 	if len(word) < 3 {
 		return wordParsed{false, ""}
 	}
@@ -108,18 +73,51 @@ func parseWord(word string) wordParsed {
 	return wordParsed{true, strings.ToLower(word)}
 }
 
+func splitLine(r rune) bool {
+	return r == ':' || r == '.'
+}
+
+// Splits a line and convert every word into lowercase
+func parseLine(scanNext bool, line string) lineParsed {
+	var words []string
+
+	lineSplitted := strings.FieldsFunc(line, splitLine)
+	for _, e := range lineSplitted {
+		f := func(c rune) bool {
+			return !unicode.IsLetter(c) && !unicode.IsNumber(c)
+		}
+		eFields := strings.FieldsFunc(e, f)
+
+		if scanNext && len(eFields) > 0 {
+			result := parseWord(eFields[0])
+			if result.isValid {
+				words = append(words, result.wordString)
+			}
+		}
+		scanNext = true
+	}
+
+	if strings.LastIndexFunc(line, splitLine) != len(line)-1 {
+		scanNext = false
+	}
+
+	return lineParsed{scanNext, words}
+}
+
 // Reads the file line-by-line and discards any non spanish alphabetic character
 func parseFile(file io.Reader) []wordLine {
-	scanner := bufio.NewScanner(file)
-
 	var words []wordLine
 	lineNumber := 1
+	scanNext := false
+
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		wordList := parseLine(line)
-		if wordList != nil {
-			words = append(words, wordLine{lineNumber, wordList})
+		lineParsed := parseLine(scanNext, line)
+		scanNext = lineParsed.scanNext
+		if lineParsed.wordList != nil {
+			words = append(words, wordLine{lineNumber, lineParsed.wordList})
 		}
 
 		lineNumber++
@@ -162,5 +160,5 @@ func main() {
 		file.Close()
 	}
 
-	words.printWords()
+	fmt.Print(words.String())
 }
